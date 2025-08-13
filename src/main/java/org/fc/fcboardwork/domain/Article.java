@@ -12,7 +12,9 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 
 @Getter // 모든 필드는 접근이 가능하도록
 // @EqualsAndHashCode // list 로 가져오거나 할 때 동일성 동등성 검사를 위한 구현. 그러나 그러면 모든 필드를 비교하게 되는데, 다른 방법을 쓰겠다고함
@@ -36,6 +38,21 @@ public class Article {
     @Setter @Column(nullable = false, length = 10000) private String content; // 본문
 
     @Setter private String hashtag; // 해시태그: optional field로, null허용
+
+    // 여기 toString.Exclude가 붙은 이유는 lazy loaded fields 때문에 제외해준것
+    // 그리고 circular referencing문제도 있다고 함
+    // 얘가 articleComment안에 들어가서 toString을 찍을때 articleComment에도 Article구조가 있어서 순환참조가 됨
+    // 보통 이렇게 끊을 때는 부모(?)쪽에서 끊는다
+    @ToString.Exclude
+    // 양방향 바인딩 OnetoMany
+    // onetomany에 이름을 정해주지 않으면 매핑한 두가지를 합쳐서 테이블을 만들어버림
+    // 이름을 정했기 때문에, 이건 article이라는 테이블로부터 온 것임을 명시하는 것
+    // 실무에서는 양방향 바인딩을 일부러 푸는 경우도 많다
+    // 예를 들어 게시글을 삭제시 연관된 댓글이 다 사라지는 등 운영에서의 데이터 편집시 문제가 생길수 있기에.
+    // 그래서 fk를 안 걸기도 한다
+    @OrderBy("id")
+    @OneToMany(mappedBy = "article", cascade = CascadeType.ALL)
+    private final Set<ArticleComment> articleComments = new LinkedHashSet<>();
 
     @CreatedDate @Column(nullable = false) private LocalDateTime createdAt; // 생성일시
     @CreatedBy @Column(nullable = false, length = 100) private String createdBy; // 생성자
