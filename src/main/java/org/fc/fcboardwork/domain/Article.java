@@ -10,6 +10,7 @@ import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
@@ -25,6 +26,9 @@ import java.util.Set;
         @Index(columnList = "createdAt"),
         @Index(columnList = "createdBy")
 })
+// test코드에 enableJpaAuditing했어도 각 entity에 entityListeners 붙여주지 않으면
+// jpaAuditing 사용이 안된다.
+@EntityListeners(AuditingEntityListener.class)
 @Entity // entity 명시 하면 primary key도 만들어줘야함
 public class Article {
 
