@@ -1,6 +1,8 @@
 ##  2025-08-14
 
-#### application.properties에서
+
+### application.properties에서
+
 - spring.application.name이 자동으로 들어있었는데, 이것은 spring application의 이름을 지정하는 설정임
   - 로그나 모니터링 툴에서 애플리케이션 식별자 역할
   - Spring Cloud, Eureka 같은 분산 시스템에서 서비스 이름으로 사용
@@ -256,6 +258,8 @@ public class ArticleComment {
   - 연관관계 (`@ManyToOne`, `@OneToMany`...)가 잘 매핑되어 있고
   - 영속성 컨텍스트(`EntityManager` 또는 `Spring Data JPA`의 `Repository`)가 그 객체들을 관리하는 상태라면
   - `tableA`를 update할 때 `EntityManager`가 변경 사항을 감지하여 `tableB, C`의 update쿼리도 실행해준다.
+  - **그런데 이건 실무에서는 문제가 될수 있어서 안쓰는 경우가 있다고 함. comment-notes의 `@onetomany`참고**
+
 - 레거시프로젝트에서는 nullable하지 않은 컬럼인데 값이 들어오지 않거나 length가 맞지 않아 오류가 나면, DB차원의 문제인지를 알아채기 위해 로그나 다른 방법을 쓸수밖에 없었다.
   - hibernate/JPA를 통해 Java 엔티티 클래스에 `@Column(nullable = false, length = 50)` 같은 제약 조건을 직접 설정
   - DB구조를 보지 않아도 java코드만으로 데이터 제약 조건 파악이 가능
@@ -357,3 +361,187 @@ public record ArticleDto(String title, String content) {}
 // 필드 final, getter 역할의 메서드 자동, equals/hashCode/toString 자동
 // 가장 간결, Lombok 불필요
 ```
+
+  ##### `javaBean` -> `Lombok @Value` -> `record`
+  ```java
+  // 1. JavaBean (DTO 스타일)
+  public class ArticleDto {
+      private String title;
+      private String content;
+
+      public ArticleDto() {} // 기본 생성자
+
+      public String getTitle() { return title; }
+      public void setTitle(String title) { this.title = title; }
+
+      public String getContent() { return content; }
+      public void setContent(String content) { this.content = content; }
+  }
+
+  // 2. Lombok @Value (불변 DTO)
+  import lombok.Value;
+
+  @Value
+  public class ArticleDto {
+      String title;
+      String content;
+  }
+  // 모든 필드 final, getter 자동, equals/hashCode/toString 자동
+  // 생성 시점 이후 값 변경 불가
+
+  // 3. record (Java 16+ 불변 DTO)
+  public record ArticleDto(String title, String content) {}
+  // 필드 final, getter 역할의 메서드 자동, equals/hashCode/toString 자동
+  // 가장 간결, Lombok 불필요
+  ```
+
+---
+### 의존성 주입이 없던 때의 mvc패턴?
+- 의존성 주입이 그렇게도 중요하다면 그 전에는 mvc패턴을 어떻게 구현했는지 궁금했다.
+- 그 전에는 DI 없이 `new`로 연결을 했는데, 이것은 결합도가 높다는 문제가 있음.
+
+#### `@Resource` vs `@Autowired`
+- 내가 하던 프로젝트 중 `@Resource(name = ...)` 을 사용한 경우가 있는데 이건 뭔가 또 궁금해졌다.
+- Java표준, 이름 기준(`@Autowired`는 Spring전용, 타입 기준)
+- 따라서 name에 적어준 이름을 우선으로 본다.
+
+#### `@Autowired`의 경우 DB연결 등을 Spring이 Bean으로 생성 후 주입한다는데 이건 또 무슨 말인지 궁금했음
+- 나는 이전 프로젝트들에서 xml파일을 이용해 DB 설정을 했다.
+- spring이전의 MVC방식을 보면...
+  ```java
+  // Controller
+  public class MemberController {
+    private MemberService service;
+
+    public MemberController() {
+        SqlSessionFactory factory = MyBatisUtil.getSqlSessionFactory();
+        MemberDAO dao = new MemberDAO(factory);
+        this.service = new MemberService(dao);
+    }
+  }
+  ```
+- 이렇게 service가 이용할 것까지 controller에서 관리를 해야한다는 것이다.
+- **DI의 핵심:** DAO가 어떤 방식으로 SQL을 실행하는지 Service는 몰라도 된다
+
+  #### 근데 나는 sqlSessionFactory 따로 부르지 않았는데?
+  - sqlSessionFactory는 Mybatis에서 SQL을 실행하는 통로임
+  - 이게 없으면 Mybatis가 xml에 선언한 SQL을 실행할 방법이 없음.
+  - (어쨌든 spring + myBatis가 이부분을 처리해주고 있었다는 뜻임)
+    - `context-datasource.xml` + `mybatis-config.xml`(myBatis 설정) + DAO의 `@Resource`를 통해서
+
+#### Spring없이 java EE환경에서 @Resource 쓰려면?
+- 톰캣같은 서버에서 JNDI 리소스 주입
+  - 1. tomcat 설정 (context.xml)
+  ```xml
+  <Resource name="jdbc/mydb" 
+          auth="Container"
+          type="javax.sql.DataSource"
+          maxTotal="20" 
+          maxIdle="10" 
+          username="dbuser"
+          password="dbpass"
+          driverClassName="com.mysql.cj.jdbc.Driver"
+          url="jdbc:mysql://localhost:3306/testdb"/>
+  ```
+  - 2. java에서 주입받기(@Resource)
+  ```java
+  @Repository
+  public class MyDao {
+      @Resource(name="jdbc/mydb")
+      private DataSource dataSource;
+  }
+  ```
+- 1번이 뭔가 익숙하다.. 기존 프로젝트에서 context-datasource를 썼기 때문이다.
+- spring boot이후로는 같은 설정을 모두 java config + `application.properties` 에서 처리한다고 함.
+- 그래도 왜 spring이 개발자들의 봄이라 불렸는지는 이해할 수 있었다
+<br>
+<br>
+
+
+
+
+
+---
+
+## 2025-08-15
+
+### 테스트하는 방법(?)
+#### select
+- 그냥 List로 가져와서 그 개수를 셌음
+#### insert
+- previousCount를 구하고, 새로 하나를 Article.of으로 save한 다음 previousCount+1의 개수인지를 셌음
+#### update
+- findById해서 update될 record(?)를 하나 고르고
+- update할부분은 set...로(`@Setter`붙였기에 가능) 취해와서 set한다음
+- repository에 다시 save한다.
+- 그런 다음 해당 record가 `hasFieldOrPropertyWithValue`했을때 update된 값을 가지고 있는가 확인한다.
+> #### 근데 여기서 특이한 부분이 있었음
+> `Tests passed`는 떴으나 update쿼리가 로그에 나오지 않은것.<br>
+> slice 테스트를 돌릴 때 Test안에 있는 모든 test 메서드들은 해당 Test 클래스 위에 걸린 `@DataJpaTest`로 인해 transactional이 걸려 있다.<br>
+> transaction은 기본 동작이 rollback인데, 이에 따라 변경점이 중요하지 않다고 판단되면 동작이 생략되기도 함.
+> 그냥 save한 다음 끝나버리기 때문에 update가 로그에 안찍힘.<br>
+> 이때는 save한 다음 flush를 하거나 `saveAndFlush`를 이용.
+#### delete
+- delete의 경우 조금 복잡할수 있음. update때처럼 findById에서 record를 하나 고르지만,
+- 지우는 것이기 때문에 해당 entity의 count도 구해놔야 함
+- 그런데 양방향 바인딩으로 cascade 되어있으므로 해당 entity와 매핑된 entity의 count도 구해야함
+- 이경우, 해당 하위 entity는 @manytoOne이기 때문에 '없어질'개수가 하나가 아니다.
+- 그러므로 '없어질'개수도 따로 구하는데 이게 내기준엔 좀 신기했다.
+-`article.getArticleComments().size()`로 구해진다(왜냐면 article entity안에서 set만들어서 해당 articleComment entity랑 연관관계 형성했기 때문에..)
+- delete한 다음에 article은 개수가 하나 줄었나 보고, articleComment는 구한 size만큼 줄었나 보면 된다.
+> 이때 분명 cascade로 이어진 article_comment에서도 삭제가 발생해야하는데 로그에 뜨지 않은 issue가 있어서 알아보니 강의 github에 올라온 data.sql에 적용된 컬럼이 지금 내가 실습하는 시점과 달라서 데이터를 일부만 가져왔는데, 그때 comments 데이터는 안가져왔기 때문이었다. 그래서 가공해서 가져옴.<br>
+해당 data.sql의 history를 보면 되는 것이었는데 감안을 못했다..
+
+---
+
+### yaml에서 datasource설정
+```yaml
+spring:
+  config:
+    activate:
+      on-profile: testdb
+
+  datasource:
+    url: jdbc:h2:mem:board;mode=mysql
+    driver-class-name: org.h2.Driver
+  sql.init.mode: always
+  # test.database.replace: none
+  ```
+  이전에 datasource 부분을 주석처리 했었는데 오늘에야 설명을 들음.
+  - H2에서 제공하는 호환성 옵션 중의 하나라고 함. mode를 통해 다양한 DB를 사용할 수 있다고..
+    > #### jdbc:h2:mem:board → 메모리 H2 DB를 생성 (DB 이름: board)
+    > mode=mysql → H2 DB를 MySQL 호환 모드로 동작시키겠다는 뜻<br>
+    > 예: MySQL의 문법과 최대한 비슷하게 동작하도록 SQL 파서를 변경<br>
+    > MySQL처럼 AUTO_INCREMENT 처리, 문자열 비교 방식, 함수 호환 등 일부 차이를 맞춰줌<br>
+    > 이유: 실제 운영 DB가 MySQL이면, H2에서 테스트할 때 SQL 호환성 문제를 줄이기 위해
+  - 그런데 이런 설정을 해도 Test 클래스에서 `@ActiveProfiles("testdb")`이렇게 해주어야 한다.
+  - 근데 이렇게 해도 test용 DB가 자기가 지정한 DB를 띄워버리기 때문에 자동으로 testDB를 띄우지 못하게 막아줘야함.
+  - 이럴 때는 `@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)`(기본값은 ANY)를 테스트클래스 위에 올려주면 됨.
+    - 근데 이 테스트에만 적용할 거면 이걸 붙이는게 맞지만 다른 모든 테스트에 설정하고 싶으면 위 yaml에서 `test.database.replace: none` 이부분을 살려주면 되는 것이다.
+
+---
+
+### Repository에 `@Repository`를 붙이지 마라?
+#### 스테레오 annotation은 구현 클래스에 붙이지 인터페이스에 붙이지 않는다
+- @Component, @Service, @Repository, @Controller 등을 스테레오타입 애노테이션이라 부른다.
+  - 1. Spring이 Bean으로 등록하도록 표시
+  - 2. 역할에 맞게 의미부여(@Service는 서비스계층, @Repository는 DB계층...)
+- 예를 들어 @Service는 구현 클래스인 ServiceImpl에 붙는 것이지 Service에 붙는게 아니다.
+
+  -  **1. Spring이 Bean을 생성하는 대상은 클래스이기 때문**<br>인터페이스에는 실제 인스턴스가 존재하지 않음 → Bean 등록 불가
+
+  - **2. DI(Dependency Injection) 시 Spring은 구현체를 찾아서 주입**<br>예: @Autowired UserService userService; → Spring이 UserServiceImpl을 찾아 주입
+  - **3. 인터페이스에 붙이면 아무 효과 없음**<br>
+인터페이스는 Bean 등록이 안 되니까, 스캔해도 Spring이 무시함
+
+- 그럼 Repository에 안 붙인 annotation은 어디로 갔냐?
+  - `extends JpaRepository` 했기때문에 runTime시에 Spring Data JPA가 구현체를 자동생성함. 그래서 안붙여도 된다.
+- 그럼 어떨때 붙여야 하냐
+  - 직접 구현한 클래스에 붙일 때
+  ```java
+  @Repository
+  public class CustomArticleRepositoryImpl implements CustomArticleRepository {
+      // 구현
+  }
+  ```
+  - 직접 Bean으로 등록하려는 경우에 붙임
