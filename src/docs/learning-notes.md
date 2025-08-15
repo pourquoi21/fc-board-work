@@ -361,7 +361,7 @@ public record ArticleDto(String title, String content) {}
 // 필드 final, getter 역할의 메서드 자동, equals/hashCode/toString 자동
 // 가장 간결, Lombok 불필요
 ```
-=======
+
   ##### `javaBean` -> `Lombok @Value` -> `record`
   ```java
   // 1. JavaBean (DTO 스타일)

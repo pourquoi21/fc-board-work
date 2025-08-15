@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 ## 2025-08-14
 
 ### JpaConfig.java
@@ -182,3 +183,5 @@ class JpaRepositoryTest {
 - `final`이기 때문에 `someRepository = 다른값` 이런식으로 재할당이 불가
 - 그러나 someRepository 내부상태는 바뀔 수가 있음
 - 의존성이 한번 주입된 후에 다른 Repository로 바뀌는 실수를 방지한다고.
+=======
+>>>>>>> Stashed changes
