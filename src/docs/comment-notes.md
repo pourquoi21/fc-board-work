@@ -31,14 +31,10 @@
             @Index(columnList = "createdBy")
     })
 ```
-
-- @EntityListeners(AuditingEntityListener.class): test코드에 enableJpaAuditing했어도 각 entity에 entityListeners 붙여주지 않으면
-jpaAuditing 사용이 안된다.
-
-```
 #### @EntityListeners(AuditingEntityListener.class)
-- test코드에 enableJpaAuditing했어도 각 entity에 entityListeners 붙여주지 않으면
-jpaAuditing 사용이 안된다.
+- test코드에 enableJpaAuditing했어도 각 entity에 entityListeners 붙여주지 않으면 jpaAuditing 사용이 안된다.
+
+
 #### @Entity
 - entity 명시 하면 primary key도 만들어줘야함
 #### @Id
@@ -181,4 +177,26 @@ class JpaRepositoryTest {
 - `final`이기 때문에 `someRepository = 다른값` 이런식으로 재할당이 불가
 - 그러나 someRepository 내부상태는 바뀔 수가 있음
 - 의존성이 한번 주입된 후에 다른 Repository로 바뀌는 실수를 방지한다고.
+
+## 2025-08-16
+
+### AuditingFields.java
+#### @MappedSuperclass
+- 공통되는 필드를 해당 java클래스로 빼냈다.
+- 이 외에 @Embedded도 있다고하는데 일단은 mappedSuperclass를 이용함
+
+#### @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+- 이렇게 하면 `2025-08-16T20:30:00`형식으로 데이터를 보냄
+- 이것 말고 `@DateTimeFormat(pattern = "yyyy-MM-dd")` 이렇게 패턴으로 지정해주는 방법도 있다.
+- 근데 jpa로 자동생성되는날짜인데 왜 클라이언트에서 받아 파싱하는 과정이 필요하다는거지?
+- 이건 추후에 더 알아보자.
+
+#### @Column(nullable = false, updatable = false)
+- 원래 updatable은 없던 것인데 생성일시와 같은 날짜는 update되면 안되기 때문에 updatable false를 붙였다
+- 이전엔 왜 안붙였는가 싶었는데 `기본적으로 JPA는 엔티티를 업데이트할 때, 바뀐 값만 update SQL에 반영하기 때문` 이고 이번엔 `절대 바뀌지 않는다는걸 선언적으로 보장`하기 위함인 것 같다.
+
+#### @Table로 설정한 index도 해당 클래스로 옮겨도 되나?
+- 그건 좀 복잡한 설정이 필요하다고 함. (희한하네)
+- 그래서 그건 기존 entity 클래스에 그대로 들어있다.
+
 
