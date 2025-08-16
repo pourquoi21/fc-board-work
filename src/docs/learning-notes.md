@@ -18,13 +18,13 @@
   - Gradle빌드로 테스트를 돌리면 매번 JVM을 새로 띄우기 때문에 캐시가 되지 않아 오래 걸림
 - 개별 테스트를 Run으로 반복 실행하는 경우에도 매번 새 실행이 되어 느릴 수 있음
     - 한 번 실행 후 '전체 테스트'를 돌리면 빨라질 수 있음
--   ###### 그래서 언제 뭘 써야 하는가?
+  #### 그래서 언제 뭘 써야 하는가?
     - CI/CD환경과 100% 동일하게 검증해야함 -> gradle
     - 로컬 개발 중 반복 테스트 빠르게 해야함 -> intelliJ
 ---
 ### yaml설정과 로그
 ####  hibernate관련 alter table 등의 로그가 나오지 않는 문제가 있었음
->   ###### Spring Boot 3.x Hibernate 로깅 설정<br>
+>   #### Spring Boot 3.x Hibernate 로깅 설정<br>
 >   org.hibernate.SQL: debug<br>
 >   org.hibernate.type.descriptor.sql.BasicBinder: trace<br>
 >   org.hibernate.orm.jdbc.bind: trace<br>
@@ -186,7 +186,6 @@ return 부분이 `return id.equals(article.id)`처럼 아예 해당 필드로 �
 > -   @ManyToOne 같은 어노테이션은 JPA가 런타임 시점에 리플렉션으로 읽어서 
 > - 해당 필드가 다른 Entity와 어떤 관계인지, 어떻게 DB에 매핑할지 처리해 줌
 > - 즉, JPA가 객체와 DB 테이블을 연결해주는 ORM(Object-Relational Mapping) 역할
-<br>
 > #### 2. 만약 JPA를 사용하지 않는다면?
 > -   순수 자바 클래스에서 @ManyToOne 같은 건 필요도 없고 쓸 수도 없음.
 > - 대신 모든 연관관계 관리나 데이터베이스 작업을 직접 코드로 작성해야 한다.
@@ -545,3 +544,32 @@ spring:
   }
   ```
   - 직접 Bean으로 등록하려는 경우에 붙임
+
+---
+
+### H2 Console보기
+- yaml에서 기본적으로 `spring: h2: console: enabled:`을 `false`로 해 두는데 이걸 `true`로 하고,
+- `spring: datasource`에 `url: jdbc:h2:mem:testdb`, `username: sa`, `driver-class-name: org.h2.Driver`를 넣어준 다음 기존에 mySql로 연결하기 위한 설정을 주석처리한 다음 spring boot 프로젝트를 Run한다.
+ - run console에서 `H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:testdb'` 이걸 확인한다.
+ - localhost:8080/h2-console로 들어간다.
+ - 그럼 H2 console을 볼 수 있다!
+ - 중요한 건 여기서 JDBC URL에 아까 설정해 준 URL을 넣어야 한다는 것이다. 기본으로 `~/test`같은 게 들어있을 수 있는데 그러면 파일시스템에서 DB를 찾으려하기 때문에 connect가 안될 수 있다.
+ - password설정은 따로 안 해줬으니 그냥 바로 connect누르면 H2 DB확인이 가능하다!
+ #### 근데 이걸 왜 봐야 하지? 궁금했다
+어차피 test돌리면 실 DB에 영향도 안 가고(rollback되니까) 그렇게 하면 될 거 같은데 굳이 H2로 확인할 일이 있나 싶었음
+- **테스트 데이터 검증**<br>data.sql이나 JPA @Entity 설정이 잘 먹혔는지 확인
+- **문제 디버깅**<br>테스트코드 돌렸는데 원하는 데이터 안나올 때, DB에 실제로 뭐가 있는지 확인
+
+이라고 하는데 이 외에도 여러 이유가 있었으나 역시 테스트데이터 검증시에 쓴다는게 가장 실무와 맞는 설명 같았음..
+
+
+## 2025-08-16
+### 엔티티에서 공통되는 필드를 빼내기
+- `mappedSuperClass` & `embedded`
+- embedded같은 경우 class AAA와 같이 새로운 class를 해당 엔티티 안에(?) 만든 다음 `@Embedded AAA aa;` 이런 식으로 써서 사용한다(정확한 확인 필요)
+- mappedSuperclass로 아예 새로운 클래스 만들어서 분리를 했다면, 내 실습 프로젝트의 경우 중복되는 필드들은 메타데이터이고, jpa auditing으로 생성되는 것이기 때문에 jpa관련된 annotation인 `@EntityListeners(AuditingEntityListener.class)`도 새로 만든 클래스로 빼낼 수 있다.
+- 이때 @ToString은 넣어주지만 `@Setter`는 당연히 안 넣는다.
+- 중복되는 필드 빼내고 `@Column`에 `updatable=false`같은거 넣어주고.. `@Table`로 index 만드는 건 애석하지만(?) 새로 만든 클래스로 옮기기만 한다고 되는 것은 아니라고 함.
+
+  ### 그럼 이렇게 옮긴 field들은 어떻게 원래 entity랑 연결하나?
+  - extends 로 연결한다.(상속)
