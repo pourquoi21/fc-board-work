@@ -2,7 +2,6 @@
 
 
 ### application.properties에서
-
 - spring.application.name이 자동으로 들어있었는데, 이것은 spring application의 이름을 지정하는 설정임
   - 로그나 모니터링 툴에서 애플리케이션 식별자 역할
   - Spring Cloud, Eureka 같은 분산 시스템에서 서비스 이름으로 사용
@@ -571,5 +570,83 @@ spring:
 - 이때 @ToString은 넣어주지만 `@Setter`는 당연히 안 넣는다.
 - 중복되는 필드 빼내고 `@Column`에 `updatable=false`같은거 넣어주고.. `@Table`로 index 만드는 건 애석하지만(?) 새로 만든 클래스로 옮기기만 한다고 되는 것은 아니라고 함.
 
-  ### 그럼 이렇게 옮긴 field들은 어떻게 원래 entity랑 연결하나?
+  #### 그럼 이렇게 옮긴 field들은 어떻게 원래 entity랑 연결하나?
   - extends 로 연결한다.(상속)
+  - 부모 클래스 자체는 엔티티가 아니지만, 부모클래스의 필드가 자식엔티티 테이블의 컬럼으로 그대로 매핑됨.
+
+  #### 이때 @embedded 는?
+  - embedded로 공통필드를 뺐을 때는 이게 필드처럼 취급되기 때문에 그 클래스명이 중요해짐.
+  - 엔티티 안에 해당 값타입이 내장되기때문에 이것 또한 영속성 컨텍스트의 관리하에 있음
+  - 이렇게 한번 더 거치느니 그냥 상속을 이용하는 mappedsuperclass를 쓴 듯
+
+    #### 영속성 컨텍스트
+    - JPA가 엔티티 객체(ex. `new Member()`)를 데이터베이스 테이블의 레코드와 1:1로 매핑해서 관리하는 공간
+    - 영속성 컨텍스트는 ID기준으로 엔티티를 캐싱함
+
+- 근데 무조건 이렇게 하는게 맞는 건 아니고, 팀 내에서 혹은 개인 판단 하에서 하는 것임
+- 무조건 필드를 빼내면 바로 눈에 안들어올 수 있기때문이다.
+  
+---
+
+### Spring data rest
+- api를 만들기 위해 이용할 기능
+- spring data안의 구독 기능임
+- 엔티티클래스와 레포지토리로 restful api를 만들수 있다.
+- start.spring.io에서 dependency로 검색하면 `rest repositories`가 나오는데 이것임
+- 일단은 `hal explorer`도 같이 볼것임
+
+  #### yaml에도 추가할 것이 생겼다
+  - spring하에 `data.rest`추가하고 `base-path: /api`, `detection-strategy: annotated`(기본은 default)로 함
+  - annotated로 한다는 건 annotation 지정한 것들만 rest api로 노출한다는 것
+  
+  #### 그런 다음에 각 repository에 annotation붙여줌
+  - **@Repository 붙이는 거 아니다**
+  - `@RepositoryRestResource` 붙여줌
+
+  #### Hal explorer는 뭔데?
+  - data rest관련해서 시각적으로 편하게 볼 수 있다고 한다
+  - 검색을 해보니까 postman같은게 없어도 된다고 하는데?(대박!)
+  - 아까 `data.rest`의 endpoint를 `/api`로 잡았으니 localhost:8080/api로 들어가면 hal explorer로 화면을 볼 수가 있다
+  - 여기서 실행가능한 data rest로 구성된 화면을 볼 수 있고 get으로 조회해보면 정보가 나옴. 근데 특이한게 이때 content type이 json아니고 `hal+json`임
+  - `_links`라는 링크도 body에 붙어있는데 이건 restful규약 중 레벨2 `hateoas`라고한다.
+    - hateoas: REST Api를 사용하는 클라이언트가 전적으로 서버와 동적인 상호작용이 가능하도록 하는 것
+  - 여튼 각 조회된 원소를 클릭해 거기에 연관된 정보도 볼 수 있다!(ex. 게시글 - 게시글에 달린 댓글)
+
+- 이제 api형태를 다 봤으니까 프젝으로 돌아와 test에 필요한 클래스를 만들고 `@WebMvcTest`를 붙인 다음에 mockMvc로 mvc만들어서 `mvc.perform(get("/api/..."))` 이런 식으로 적어준 다음 `andExpect(...)`를 적어줬는데 404에러가 나옴
+- 왜냐하면 @WebMvcTest는 슬라이스테스트라 컨트롤러외의 bean은 로드하지 않기에 data rest의 auto configuration을 로드하지 않은것임
+- 이것 때문에 테스트를 `integration test`로 작성을 해야함
+
+  #### integration test
+  - 이걸 위해서 `@webmvcTest`대신 `@SpringBootTest`를 달아줬는데 `webenvirionment=none`뭐 이런걸 써서 경량화하고 싶지만 mockMvc를 써야 해서 그럴 수 없다고 했다.
+    - Spring Boot 2.x 이상에서 @SpringBootTest는 전체 애플리케이션 컨텍스트를 띄움 → 테스트 속도가 느림<br>일부 옵션으로 WebEnvironment.NONE을 지정하면, 서버를 띄우지 않고 컨텍스트만 로드 가능
+  - 그래서 mockMvc 인식하라고 `@AutoConfigureMockMvc`도 추가해 줌
+  - test잘 통과했으면 이후에 `.andDo(print())`해서 나온 값도 콘솔에서 볼 수 있다
+  - 근데 이거는 integration 테스트라 hibernate로그까지 같이나온다. DB에까지 영향을 준다는거. 그래서 `@transactional`을 붙였으면 좋겠다고함(import 할때 `spring`걸로 해야함). 이렇게 해야 rollback이 되니까요
+- 해당 클래스는 spring data rest에서 제공하는 것이고, 통합 테스트로 너무 무겁기 때문에 @Disabled처리함
+
+---
+
+### Query DSL
+- 우리 API에는 검색기능이 없어서 queryDSL을 사용하려함
+- spring initializr 에서 지원하고 있지 않음
+- gradle의 경우 plugin 등을 통해 적은 줄수로 사용 가능하나 비추천<br>
+ `이유: 활발하게 쓰이는 plugin도 업데이트가 몇년 전임..(ewerk)`
+- build.gradle에 넣을때 `dependencyManagement.importedProperties`라는 변수를 넣었는데 `dependencyManagement`에서 관리가 안되어 수동으로 버전을 가져온것이라고함. 이렇게하면 `JPA core collections dependency`와 동일하게 들어감 `TODO: 찾아보기`
+- 버전이 안나오면 Noclassdeffounderror가 떠서 실용적으로 더 넣은게 있다고하나 나는 claude의 도움을 받아 spring 3.5.4에 맞게 함..
+- generated라는 변수를 만들어서 이 이름으로 src/main안에 폴더를 만들게하는 부분도 있다.
+  - QueryDSL이 만드는 클래스들을 Qclass라고함
+  - qclass가 기본적으로는 build 디렉토리에 들어가는데 이렇게 되면 gradle빌드시 gradle빌드가 스캔하는 영역과 intelliJ IDEA가 스캔하는 영역이랑 달라서, intelliJ 빌드를 하면 gradle빌드 영역과 intelliJ빌드 영역 두번 불러서 중복 충돌 문제가 나므로 강제로 위치를 옮긴거라고함.
+  - 그래서 위치를 옮기면 gradle빌드시와 intelliJ빌드시 동작이같아진다고함
+  - `TODO: 이거 전에 내장tomcat만들때도 겪은문제라 그때도 해결할수 있는 문제였는지 확인해보기`
+  - 근데 생각해보니까 어제 나한테도 main안에 `generated`라는 폴더가 생겨서 알아본 기억이 있는데.. 그때는 lombok때문인줄 알았다. 딱히 설정을 해둔것도 없었고. 희한하네 `TODO`
+  #### `queryDSL predicate Executor` & `queryDSL binder customizer`
+  - 인자로 그냥 T vs `entityPath`
+  - `predicate...`만 넣어도 검색기능은 끝남
+  - 근데 대소문자 처리는 안하지만, 부분검색이 안됨.
+  - `binder customizer`가 바로 디테일한 처리를 할수있게 도와주는 녀석임
+  - `customize`메서드를 override한다음, bindings를 이용하고, 모든 필드에 대한 검색을 원하는건 아니므로 `excludeUnlistedProperties` 설정을 `true`로 해줌(기본값은 false, 모든 필드 다 검색하겠다는것)
+  - `include`로 필요한 필드 넣는데, 원래 api설계시에는 id검색도 가능하게하기로 했었으나 이건 인증기능 구현한후에 넣기
+  - 또 기본값은 `exact match`이기 때문에 `bindings.bind`에 제목 검색을 `like`로 할 수있게 `root.title`넣어주고 인자는 하나 받는것으로 `first`로 하는데 이때 `SimpleExpression::eq`라는게 있지만 이걸로는 안한다고함 `TODO: 뭐지?`
+  - 우리는 결국 `StringExpression::containsIgnoreCase`이걸로 하는데, 이거랑 `StringExpression::likeIgnoreCase`의 차이는, 후자는 쿼리문을 `like ''`로, 전자는 쿼리문을 `like '%%'`로 생성한다는 것이다. 당연히 전자가 우리가 원하는 방식임. 그리고 `ignorecase`덕에 대소문자 구분 안함.
+  - 생성일자인 createdAt은 시간이기때문에 `StringExpression`대신 `DateTimeExpression`으로 하는데 이때 `::eq`로 한다. 근데 이러면 시분초를 동일하게 넣어야하기때문에 이 검색방법은 아주 편한방법은 아님, `TODO: 이후에`
+  - Qclass파일들은 자동생성되는 것들이라 커밋하지 않을것임. 그래서 generated 디렉토리자체를 .gitignore에 추가하기로. 이때 루트패스 `/` 넣어서 `/src/main/generated` 이렇게 추가해줌
