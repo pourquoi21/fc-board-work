@@ -684,3 +684,8 @@ spring:
   - 여기에서 static 으로 받으려면 바로 alt+enter
 - ctrl+shift+f10하면 테스트실행
   - 근데 이걸로 view확인하다가 삽질 엄청함.. 일단 여기까지만.
+
+## 2025-08-18
+### thymeleaf파일을 html로도 `열 수는` 있는 이유
+- decoupled templated logic
+- 근데 문제는 이걸 다루는 로직이 spring boot properties에 아직 없다고.
