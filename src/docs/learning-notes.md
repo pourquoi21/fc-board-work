@@ -650,3 +650,37 @@ spring:
   - 우리는 결국 `StringExpression::containsIgnoreCase`이걸로 하는데, 이거랑 `StringExpression::likeIgnoreCase`의 차이는, 후자는 쿼리문을 `like ''`로, 전자는 쿼리문을 `like '%%'`로 생성한다는 것이다. 당연히 전자가 우리가 원하는 방식임. 그리고 `ignorecase`덕에 대소문자 구분 안함.
   - 생성일자인 createdAt은 시간이기때문에 `StringExpression`대신 `DateTimeExpression`으로 하는데 이때 `::eq`로 한다. 근데 이러면 시분초를 동일하게 넣어야하기때문에 이 검색방법은 아주 편한방법은 아님, `TODO: 이후에`
   - Qclass파일들은 자동생성되는 것들이라 커밋하지 않을것임. 그래서 generated 디렉토리자체를 .gitignore에 추가하기로. 이때 루트패스 `/` 넣어서 `/src/main/generated` 이렇게 추가해줌
+
+
+## 2025-08-17
+
+### 드디어 view 만들기 - controller와 test
+#### test만들때 `private final Mockmvc mvc`를 가져와서 생성자 방식으로 주입하는데..
+- 이때 autowired생략할수 없다고 하는데 왜지?
+- 테스트패키지에 있는것은 autowired가 하나만 있을때 생략할수 없다고 한다 `TODO` 그래서 생성자의 argument에 `autowired`넣음(일반 클래스에서는 안붙여줘도 붙여준걸로 상정)
+- 테스트 미리 예상해서 넣기: 게시글이 나온다는 것은 modelAttribute로 서버에서 게시글을 내려줬다는 건데 그게 있는지? `model().attributeExists("articles")` 로 해당 attribute가 있는지 검사가능
+- 이 테스트에 `@WebMvcTest`를 붙이긴했지만 이대로는 모든컨트롤러를 다 읽어들이기때문에 `@WebMvcTest(해당클래스.class)`넣으면 좋음
+- 여튼 현재는 껍데기만 만들었기때문에 당연히 테스트통과를 못한다. 근데 이상태에서 gradle build 하면 test도 자동으로 같이 실행하므로 나중에 build조차 안되는 상황이 있을수있음(나도 이런적이 있다). 이래서 커밋의 최소조건으로 test는 꼭 통과하게 만드는 정책도 있다는것
+  - 이를 위해 미리 x테스트를 제외시키는 옵션을 넣어 테스트없이 빌드를 하게하거나,
+  - 실패하는 테스트 미리 ignore처리하는 방법 등이 있다.
+- 테스트시에 해당 핸들러가 보여줄 뷰이름으로 검사하게 할수도 있다. `.andExpect(view().name("..."))`
+- 그리고 생각할게 많군.. 게시글 페이지면, 댓글도 보여야 하니까 model.attributeExists할때 댓글도 model에 보내졌는지 확인할수도 있겠군
+  #### 근데 매우 크나큰 문제가 발생
+  -`@WebMvcTest`에 class 지정을 했는데도, 강의에서는 `content type expected test/html but was text/html;charset=utf-8`라는 에러가 뜨는 반면 나는 아예 404 떠버림
+  - 확인해보니 `spring 3.x`부터는 `@webmvcTest`사용할때 `Thymeleaf auto-config`가 제한됨
+  - 대신 **`@ImportAutoConfiguration(ThymeleafAutoConfiguration.class)`를 명시** 라고함..
+  - 이렇게 해도 안돼서 `@springboottest`로 바꾸고 뭐 아주 쌩난리를 쳤는데 알고보니까 내가 `controller`패키지를 바로 `java`패키지아래 만들어버렸던거였음(바보.. gpt 쥐잡듯이 잡았는데..)
+- 마크업을 테스트하는 테스트솔루션(ex. 셀레니움)도 있다고 함( `TODO`)
+- mediatype을 철저히 검사할수있기 때문에 `contentTypeCompatibleWith`를 넣음
+
+#### 처음에 추가했던 dependency.. devtools
+- 라이브리로드와 같이 쓰면 바로바로 변경점이 저장
+- 캐시를 자동으로 삭제
+- 등.. (`TODO`..)
+
+### intelliJ 단축키들..
+- import 정리하기 (ctrl+shift+o)
+- 옵션 두번 추천받기 (ctrl+space)
+  - 여기에서 static 으로 받으려면 바로 alt+enter
+- ctrl+shift+f10하면 테스트실행
+  - 근데 이걸로 view확인하다가 삽질 엄청함.. 일단 여기까지만.
