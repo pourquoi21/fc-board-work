@@ -262,15 +262,15 @@ public class ArticleComment {
   - hibernate/JPA를 통해 Java 엔티티 클래스에 `@Column(nullable = false, length = 50)` 같은 제약 조건을 직접 설정
   - DB구조를 보지 않아도 java코드만으로 데이터 제약 조건 파악이 가능
 - JPA쓰면 복잡한 쿼리가 어렵다?
-  - JPQL(HQL) 문법은 ANSI SQL의 모든 기능을 제공하지느 ㅇ낳기 때문에 이런 오해가 있을 수 있음
+  - JPQL(HQL) 문법은 ANSI SQL의 모든 기능을 제공하지는 않기 때문에 이런 오해가 있을 수 있음
   - JPA는 엔티티 중심이기에 DB테이블구조와 완전히 다른형태로 데이터를 가져오기에는 DTO매핑이 번거로움
   - 단순히 연관관계 fetch join으로 해결할 수 없는 N + 1문제나 특정 DB의 고유 기능을 쓰려면 네이티브 SQL로 돌아가야 함
-  - ##### 대안이 있다?
-    ###### 복잡한 쿼리 → QueryDSL 사용
+  - #### 대안이 있다?
+    #### 복잡한 쿼리 → QueryDSL 사용
       - 객체지향 스타일로 타입 안정성을 유지하면서 동적 쿼리 작성 가능
-    ###### 정말 복잡한 DB 전용 기능 → Native Query
+    #### 정말 복잡한 DB 전용 기능 → Native Query
       - JPA에서도 @Query(nativeQuery = true)로 순수 SQL 작성 가능
-    ###### 하이브리드 접근
+    #### 하이브리드 접근
       - CRUD, 단순 조회 → JPA/Hibernate
       - 리포트성 쿼리, 복잡한 집계 → MyBatis나 Native SQL 같이 사용
 
@@ -717,13 +717,28 @@ spring:
 - ctrl+shift+f9하면 recompile
 
 ## 2025-08-18
-### thymeleaf파일을 html로도 `열 수는` 있는 이유
+### thymeleaf파일을 html로도 `열 수는` 있다
 - decoupled templated logic
 - 근데 문제는 이걸 다루는 로직이 spring boot properties에 아직 없다고.
 - 이거 설정을 위해 `thymeleafconfig`파일을 만들었는데, SB2와 SB3에서의 설정이 좀 다른것 같다. `TODO: 사용자 커스텀 프로퍼티와 그 세팅에 관해서`
 - `build.gradle`에 `spring configuration processor`를 추가했다.
 - decoupled logic 적용하다가 `th:block`을 없애고.. 경로 다시 잡고.. 여러 시행착오가 있었다
 - 목적은 thymeleaf문법과 HTML 분리.. 인 듯하다.
+
+  #### 근데 이걸 하고나서 서비스가 안돌아가는 문제가 있었다
+  - spring boot 3.2부터
+      - Java 컴파일러가 기본적으로 매개변수 이름 정보를 바이트코드에 포함하지 않음
+      - @ConfigurationProperties의 생성자 바인딩 시 매개변수 이름을 알 수 없어서 실패
+      - 특히 record나 @ConstructorBinding 사용 시 빈번히 발생
+  - 이런 문제가 있었다고하는데 우리의 thymeleafconfiguration안에
+    ```java
+    // Spring Boot 3에서는 생성자가 하나면 자동으로 @ConstructorBinding 적용
+    public Thymeleaf3Properties(boolean decoupledLogic) {
+        this.decoupledLogic = decoupledLogic;
+    }
+    ```
+  - 이런 부분이 있었음.
+  - 이걸 해결하려면
 
 ### 새로운 handler method 추가
 - map에 addAttribute할때 도메인코드인 Article자체를 넘기진 않을것이고(현재는 테스트목적) null만 넘김
