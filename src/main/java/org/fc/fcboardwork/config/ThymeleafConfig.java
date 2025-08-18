@@ -11,6 +11,10 @@ import org.thymeleaf.spring6.templateresolver.SpringResourceTemplateResolver;
 @EnableConfigurationProperties(ThymeleafConfig.Thymeleaf3Properties.class)
 public class ThymeleafConfig {
 
+    /**
+     * Use Thymeleaf 3 Decoupled Logic
+     */
+
     @Bean
     public SpringResourceTemplateResolver thymeleafTemplateResolver(
             SpringResourceTemplateResolver defaultTemplateResolver,
