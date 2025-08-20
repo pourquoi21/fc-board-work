@@ -738,7 +738,8 @@ spring:
     }
     ```
   - 이런 부분이 있었음.
-  - 이걸 해결하려면
+  - 이걸 해결하려면 settings/java compiler/additional command line parameters들어가서 `-parameters`를 추가해준다.
+  - 이 외에 gradle로 build하면 된다는 말도 있었지만 그렇게 했더니 queryDSL의 qClass 관련 에러가 나서 나는 이 방식이 더 나았다고 생각함.
 
 ### 새로운 handler method 추가
 - map에 addAttribute할때 도메인코드인 Article자체를 넘기진 않을것이고(현재는 테스트목적) null만 넘김
