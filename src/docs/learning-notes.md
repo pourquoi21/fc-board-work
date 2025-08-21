@@ -262,15 +262,15 @@ public class ArticleComment {
   - hibernate/JPA를 통해 Java 엔티티 클래스에 `@Column(nullable = false, length = 50)` 같은 제약 조건을 직접 설정
   - DB구조를 보지 않아도 java코드만으로 데이터 제약 조건 파악이 가능
 - JPA쓰면 복잡한 쿼리가 어렵다?
-  - JPQL(HQL) 문법은 ANSI SQL의 모든 기능을 제공하지느 ㅇ낳기 때문에 이런 오해가 있을 수 있음
+  - JPQL(HQL) 문법은 ANSI SQL의 모든 기능을 제공하지는 않기 때문에 이런 오해가 있을 수 있음
   - JPA는 엔티티 중심이기에 DB테이블구조와 완전히 다른형태로 데이터를 가져오기에는 DTO매핑이 번거로움
   - 단순히 연관관계 fetch join으로 해결할 수 없는 N + 1문제나 특정 DB의 고유 기능을 쓰려면 네이티브 SQL로 돌아가야 함
-  - ##### 대안이 있다?
-    ###### 복잡한 쿼리 → QueryDSL 사용
+  - #### 대안이 있다?
+    #### 복잡한 쿼리 → QueryDSL 사용
       - 객체지향 스타일로 타입 안정성을 유지하면서 동적 쿼리 작성 가능
-    ###### 정말 복잡한 DB 전용 기능 → Native Query
+    #### 정말 복잡한 DB 전용 기능 → Native Query
       - JPA에서도 @Query(nativeQuery = true)로 순수 SQL 작성 가능
-    ###### 하이브리드 접근
+    #### 하이브리드 접근
       - CRUD, 단순 조회 → JPA/Hibernate
       - 리포트성 쿼리, 복잡한 집계 → MyBatis나 Native SQL 같이 사용
 
@@ -585,6 +585,7 @@ spring:
 
 - 근데 무조건 이렇게 하는게 맞는 건 아니고, 팀 내에서 혹은 개인 판단 하에서 하는 것임
 - 무조건 필드를 빼내면 바로 눈에 안들어올 수 있기때문이다.
+- 어쨌든 나는 이 필드들을 `auditingfields`라는 클래스로 따로 빼냄.
   
 ---
 
@@ -650,3 +651,130 @@ spring:
   - 우리는 결국 `StringExpression::containsIgnoreCase`이걸로 하는데, 이거랑 `StringExpression::likeIgnoreCase`의 차이는, 후자는 쿼리문을 `like ''`로, 전자는 쿼리문을 `like '%%'`로 생성한다는 것이다. 당연히 전자가 우리가 원하는 방식임. 그리고 `ignorecase`덕에 대소문자 구분 안함.
   - 생성일자인 createdAt은 시간이기때문에 `StringExpression`대신 `DateTimeExpression`으로 하는데 이때 `::eq`로 한다. 근데 이러면 시분초를 동일하게 넣어야하기때문에 이 검색방법은 아주 편한방법은 아님, `TODO: 이후에`
   - Qclass파일들은 자동생성되는 것들이라 커밋하지 않을것임. 그래서 generated 디렉토리자체를 .gitignore에 추가하기로. 이때 루트패스 `/` 넣어서 `/src/main/generated` 이렇게 추가해줌
+
+
+## 2025-08-17
+
+### 드디어 view 만들기 - controller와 test
+#### test만들때 `private final Mockmvc mvc`를 가져와서 생성자 방식으로 주입하는데..
+- 이때 autowired생략할수 없다고 하는데 왜지?
+- 테스트패키지에 있는것은 autowired가 하나만 있을때 생략할수 없다고 한다. 그래서 생성자의 argument에 `autowired`넣음(일반 클래스에서는 안붙여줘도 붙여준걸로 상정)
+  - 일반 클래스에서는 생성자가 하나뿐이면 자동으로 `@Autowired`로 인식함.
+  - 그래서 아래의 코드에서는 `@Autowired`가 없는 것임
+    #### 1. 일반 클래스에서의 경우
+    ```java
+    @Service
+    public class ArticleService {
+
+        private final ArticleRepository articleRepository;
+
+        // 생성자가 하나뿐이라면 @Autowired 생략 가능
+        public ArticleService(ArticleRepository articleRepository) {
+            this.articleRepository = articleRepository;
+        }
+    }
+    ```
+    - 그러나 테스트에서는 다르다.
+    #### 2. 테스트 클래스에서의 경우
+    ```java
+    @WebMvcTest(ArticleController.class)
+    class ArticleControllerTest {
+
+        private final MockMvc mvc;
+
+        // ❌ @Autowired 없으면 에러
+        public ArticleControllerTest(MockMvc mvc) {
+            this.mvc = mvc;
+        }
+    }
+    ```
+- 테스트 미리 예상해서 넣기: 게시글이 나온다는 것은 modelAttribute로 서버에서 게시글을 내려줬다는 건데 그게 있는지? `model().attributeExists("articles")` 로 해당 attribute가 있는지 검사가능
+- 이 테스트에 `@WebMvcTest`를 붙이긴했지만 이대로는 모든컨트롤러를 다 읽어들이기때문에 `@WebMvcTest(해당클래스.class)`넣으면 좋음
+- 여튼 현재는 껍데기만 만들었기때문에 당연히 테스트통과를 못한다. 근데 이상태에서 gradle build 하면 test도 자동으로 같이 실행하므로 나중에 build조차 안되는 상황이 있을수있음(나도 이런적이 있다). 이래서 커밋의 최소조건으로 test는 꼭 통과하게 만드는 정책도 있다는것
+  - 이를 위해 미리 x테스트를 제외시키는 옵션을 넣어 테스트없이 빌드를 하게하거나,
+  - 실패하는 테스트 미리 ignore처리하는 방법 등이 있다.
+- 테스트시에 해당 핸들러가 보여줄 뷰이름으로 검사하게 할수도 있다. `.andExpect(view().name("..."))`
+- 그리고 생각할게 많군.. 게시글 페이지면, 댓글도 보여야 하니까 model.attributeExists할때 댓글도 model에 보내졌는지 확인할수도 있겠군
+  #### 근데 매우 크나큰 문제가 발생
+  -`@WebMvcTest`에 class 지정을 했는데도, 강의에서는 `content type expected test/html but was text/html;charset=utf-8`라는 에러가 뜨는 반면 나는 아예 404 떠버림
+  - 확인해보니 `spring 3.x`부터는 `@webmvcTest`사용할때 `Thymeleaf auto-config`가 제한됨
+  - 대신 **`@ImportAutoConfiguration(ThymeleafAutoConfiguration.class)`를 명시** 라고함..
+  - 이렇게 해도 안돼서 `@springboottest`로 바꾸고 뭐 아주 쌩난리를 쳤는데 알고보니까 내가 `controller`패키지를 바로 `java`패키지아래 만들어버렸던거였음(바보.. gpt 쥐잡듯이 잡았는데..)
+- 마크업을 테스트하는 테스트솔루션(ex. 셀레니움)도 있다고 함( `TODO`)
+- mediatype을 철저히 검사할수있기 때문에 그걸로 인한 오류를 막기 위해 `contentTypeCompatibleWith`를 넣음
+
+#### 처음에 추가했던 dependency.. devtools
+- 라이브리로드와 같이 쓰면 바로바로 변경점이 저장
+- 캐시를 자동으로 삭제
+- 등.. (`TODO`..)
+
+### intelliJ 단축키들..
+- import 정리하기 (ctrl+alt+o)
+- 옵션 두번 추천받기 (ctrl+space)
+  - 여기에서 static 으로 받으려면 바로 alt+enter
+- ctrl+shift+f10하면 테스트실행
+  - 근데 이걸로 view확인하다가 삽질 엄청함.. 일단 여기까지만.
+- ctrl+shift+f9하면 recompile
+
+## 2025-08-18
+### thymeleaf파일을 html로도 `열 수는` 있다
+- decoupled templated logic
+- 근데 문제는 이걸 다루는 로직이 spring boot properties에 아직 없다고.
+- 이거 설정을 위해 `thymeleafconfig`파일을 만들었는데, SB2와 SB3에서의 설정이 좀 다른것 같다. `TODO: 사용자 커스텀 프로퍼티와 그 세팅에 관해서`
+- `build.gradle`에 `spring configuration processor`를 추가했다.
+- decoupled logic 적용하다가 `th:block`을 없애고.. 경로 다시 잡고.. 여러 시행착오가 있었다
+- 목적은 thymeleaf문법과 HTML 분리.. 인 듯하다.
+
+  #### 근데 이걸 하고나서 서비스가 안돌아가는 문제가 있었다
+  - spring boot 3.2부터
+      - Java 컴파일러가 기본적으로 매개변수 이름 정보를 바이트코드에 포함하지 않음
+      - @ConfigurationProperties의 생성자 바인딩 시 매개변수 이름을 알 수 없어서 실패
+      - 특히 record나 @ConstructorBinding 사용 시 빈번히 발생
+  - 이런 문제가 있었다고하는데 우리의 thymeleafconfiguration안에
+    ```java
+    // Spring Boot 3에서는 생성자가 하나면 자동으로 @ConstructorBinding 적용
+    public Thymeleaf3Properties(boolean decoupledLogic) {
+        this.decoupledLogic = decoupledLogic;
+    }
+    ```
+  - 이런 부분이 있었음.
+  - 이걸 해결하려면 settings/java compiler/additional command line parameters들어가서 `-parameters`를 추가해준다.
+  - 이 외에 gradle로 build하면 된다는 말도 있었지만 그렇게 했더니 queryDSL의 qClass 관련 에러가 나서 나는 이 방식이 더 나았다고 생각함.
+
+### 새로운 handler method 추가
+- map에 addAttribute할때 도메인코드인 Article자체를 넘기진 않을것이고(현재는 테스트목적) null만 넘김
+- 근데 이렇게 했더니 테스트 돌릴때 `article`이 없다고 에러남. `article/`로 접속할때 whitelabel 에러 뜨는 것도 같은 이유인 것 같다.
+
+### 따로 merge한 부분이 있었는데
+- auditingfields 클래스를 추상클래스로 변경한 부분
+  - 엔티티에서 상속하여 사용해야하는 목적에 더 잘 맞도록 `abstract` 키워드를 추가했다라..
+- 근데 이거 구현하는 부분은 같이 안 하냐고..? `TODO`
+
+### spring security 적용
+- 주의할 점: `spring web`, `spring security`, `thymeleaf` 세 가지 모두를 `start.spring.io`에서 import해서 봐야 실수가 없다고 함
+- thymeleaf빼고 두가지만 import해보니까 `  implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'` 이게 빠져있다.
+- 문제는 이걸 적용하면 화면에 들어가기 어려워지므로(예전의 나도 겪었던 일..)security Config를 따로 해주기로 한다.
+- 근데 이 security config이 `SB2.7`부터 변경이 되었다고함. [참조 spring blog](https://spring.io/blog/2022/02/21/spring-security-without-the-websecurityconfigureradapter)
+- `auto-configuration` 정책 차이도 있고, `WebSecurityConfigurerAdapter`를 이용하던것이 `securityfilterChain`을 이용하는 등 변화가 있었던거 같다.
+- 또, `formLogin()`을 인자없이 쓰는게 deprecated되어서 안에 `Customizer.withDefaults()`를 넣어주었다.
+- 앗차차 `@Configuration` 을 빼먹음. `@EnableWebSecurity`는 안넣어도 된다는데? (`TODO: 이유 알아보기`)
+- 여튼 이걸 적용하면 기존 test들도 실패가 되기때문에 `@Import(SecurityConfig.class)`요걸 넣어주면 된다.
+
+  #### AuthControllerTest를 만들었는데
+  - 예전에는 여러 모듈이 합쳐진 상태에서 슬라이스테스트를 하는게 어려운 점이 많았는데 지금은 spring security 적용된 상태에서도 `@WebMvcTest`로 얼마든지 테스트할 수있다고 한다.
+    #### 예전에는 어땠길래?
+    - spring security는 구조적으로 servlet filter 기반으로 사용자가 url요청하면 dispatcherservlet 가기 전에 securityfilterchain이 먼저 가로챔
+      #### 옛날(Spring Boot 1.x~2.3 전후)**
+        - @WebMvcTest로 테스트하면 Security까지 같이 로드돼버림
+        - MockMvc 요청은 전부 인증 필요 → 401 Unauthorized 나옴<br>
+        **해결하려면**
+          - @Import(SecurityConfig.class)로 수동 등록
+          - @WithMockUser로 직접 인증 사용자 지정
+          - 아예 excludeAutoConfiguration = SecurityAutoConfiguration.class로 Security
+      #### 지금(Spring Boot 2.7 ~ 3.x, Security 5.7 ~ 6.x)**
+        - spring-security-test 라이브러리를 포함하면,
+        - MockMvc가 알아서 Security 필터를 인식하고, @WithMockUser 같은 어노테이션을 지원함
+        - 그래서 Controller 슬라이스만 가져와도, Security 필터체인이 자동으로 MockMvc에 연결됨
+        - 덕분에 인증/인가 테스트도 자연스럽게 같이 가능해짐
+  - `/login`으로 갈때 해당 페이지 정상 호출되는지의 테스트인데 viewName은 검사 안함. 왜냐면 얘는 자동생성되는 애라서 (article 부분 검사할때는 ` .andExpect(view().name("articles/index"))` 이렇게 했었음)
+  - attribute도 따로 검사 안함
