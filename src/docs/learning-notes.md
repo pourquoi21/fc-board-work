@@ -778,3 +778,9 @@ spring:
         - 덕분에 인증/인가 테스트도 자연스럽게 같이 가능해짐
   - `/login`으로 갈때 해당 페이지 정상 호출되는지의 테스트인데 viewName은 검사 안함. 왜냐면 얘는 자동생성되는 애라서 (article 부분 검사할때는 ` .andExpect(view().name("articles/index"))` 이렇게 했었음)
   - attribute도 따로 검사 안함
+
+## 2025-08-21
+### @ConfigurationPropertiesScan
+- 늦게서야 발견했는데 강의(SB2.5.x)의 main class에는 `@ConfigurationPropertiesScan`이게 붙어있었다.
+- 확인해보니 thymeleaf config하던 class에 `@ConfigurationProperties`가 있는데, 이게 SB3.x부터 자동으로 스캔이 된다고 했다.
+- TODO: `@Configuration` vs `@ConfigurationProperties`
