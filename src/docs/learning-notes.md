@@ -784,3 +784,27 @@ spring:
 - 늦게서야 발견했는데 강의(SB2.5.x)의 main class에는 `@ConfigurationPropertiesScan`이게 붙어있었다.
 - 확인해보니 thymeleaf config하던 class에 `@ConfigurationProperties`가 있는데, 이게 SB3.x부터 자동으로 스캔이 된다고 했다.
 - TODO: `@Configuration` vs `@ConfigurationProperties`
+
+## 2025-08-22
+### Spring boot의 슬라이스테스트 기능을 쓰지 않는다는 의미?
+- 저번에는 `@WebMvcTest`로 슬라이스테스트를 했는데 이번에는 스프링 부트 애플리케이션이 뜨는 시간을 없애겠다고 한다.
+- 대신 디펜던시같은게 필요하면 mocking을 할거고 이를 위해 mockito를 쓰겠다고 했다. 이건 이미 spring test패키지에 포함되어 있어서 따로 설치할 필요는 없다고 한다.
+- 테스트 클래스 위에 `@ExtendWith(MockitoExtension.class)`이걸 붙여준다.
+- 테스트클래스 말고 원래클래스에는 `@RequiredArgsConstructor`를 붙여서 필수생성자를 자동으로 만들어준다. (`TODO`)
+- articleService를 articleServiceTest에서 불러올때 `sut`라는 이름으로 불러왔는데 이는 `System Under Test`라는 의미로 테스트 대상을 말한다.
+- 테스트에서 mock을 주입하는 대상은 mockito에서 지원하는 것 중 `@InjectMocks`을 붙이고 나머지는 `@Mock`
+
+## 2025-08-23
+### sut테스트시 파라미터가 여러개라면
+- DTO로 만들어 관리하는건 어떨지?
+- JPA buddy를 이용해 record형태로 DTO를 만들었는데 이때 생성자 만들기를 했더니 compact/canonical 등의 옵션이 있다. (`TODO`)
+- 테스트 중 페이지네이션에 대한 테스트가 있는데 이것을 spring framework의 Page를 이용해서 구현하네.. `TODO`
+- 페이지네이션 뿐 아니라 정렬 기능도 page 안에 들어있다고 한다.
+
+## serializable
+- 우리는 jackson을 직렬화도구로 사용하고 있어서 java에서 제공하는 serializable이 필요없다.
+- 그러니 jpa buddy를 쓰고있다면 option들어가서 non-serializable을 체크해주자
+
+## 2025-08-24
+### OSIV
+- open session in view
